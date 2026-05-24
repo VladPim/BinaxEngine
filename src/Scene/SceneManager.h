@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include "GameObject.h"
 #include "Graphics/Shader.h"
+#include "Scene/Frustum.h"
 
 // ===== ТИПЫ ТУМАНА (глобально, чтобы использовать без SceneManager::) =====
 enum FogType {
@@ -25,7 +26,7 @@ public:
     void RenderDepth(Shader& depthShader);
     void RenderOutline(Shader& outlineShader, const glm::mat4& view, const glm::mat4& projection, 
                        const glm::vec3& color, int mode, float pointSize, float fillAlpha);
-
+  
     std::shared_ptr<GameObject> CreateGameObject(const std::string& name);
     void DeleteGameObject(GameObject* object);
     void DuplicateSelectedObject();
@@ -57,7 +58,6 @@ public:
     void ResetPhysics();
     void RegisterForPhysicsReset(GameObject* obj);
 
-    // Поиск shared_ptr по сырому указателю
     std::shared_ptr<GameObject> FindGameObjectByPtr(GameObject* ptr);
 
     // ===== НАСТРОЙКИ ТУМАНА =====
@@ -70,9 +70,12 @@ public:
         float linearEnd = 50.0f;
     };
     FogSettings& GetFogSettings() { return m_Fog; }
-
-    // В public секцию
     std::shared_ptr<GameObject> GetActiveFog() const;
+    void SetFrustumCullingForActiveCamera(bool enabled);
+    void RenderWithCulling(Shader& shader, const Frustum& frustum);
+    void RenderInstanced(Shader& shader, const Frustum* frustum = nullptr);
+    void RenderLightShafts(const glm::mat4& view, const glm::mat4& projection);
+    
 
 private:
     bool m_Initialized;
@@ -82,4 +85,5 @@ private:
     float m_CameraYaw = -90.0f;
     float m_CameraPitch = 0.0f;
     FogSettings m_Fog;
+    Shader m_ShaftShader;
 };
