@@ -14,17 +14,20 @@ uniform mat4 view;
 uniform mat4 projection;
 uniform mat4 lightSpaceMatrix;
 
-void main() {
-    FragPos = vec3(model * vec4(aPos, 1.0));
+void main()
+{
+    vec4 worldPos = model * vec4(aPos, 1.0);
+    FragPos = worldPos.xyz;
     TexCoords = aTexCoords;
-    FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
+    FragPosLightSpace = lightSpaceMatrix * worldPos;
 
-    // Правильная матрица для нормалей и касательных
+    // Матрица для преобразования нормалей и касательных в мировое пространство
     mat3 normalMatrix = transpose(inverse(mat3(model)));
-    vec3 N = normalize(normalMatrix * aNormal);
     vec3 T = normalize(normalMatrix * aTangent);
+    vec3 N = normalize(normalMatrix * aNormal);
+    // Пересчёт бинормали для ортогональности (исправление при искажённых UV)
     vec3 B = cross(N, T);
     TBN = mat3(T, B, N);
 
-    gl_Position = projection * view * vec4(FragPos, 1.0);
+    gl_Position = projection * view * worldPos;
 }
