@@ -7,6 +7,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "Physics/PhysicsWorld.h"
+#include "Graphics/Shader.h"
+#include <glm/gtx/quaternion.hpp>
 
 SceneManager::SceneManager() {
     m_Initialized = false;
@@ -23,6 +25,9 @@ void SceneManager::Initialize() {
     std::cout << "Initializing SceneManager..." << std::endl;
 
     m_GridMesh = Primitives::CreateGrid(500);   // 500x500 юнитов
+
+    
+    m_ShaftShader.Load("assets/shaders/shaft.vert", "assets/shaders/shaft.frag");
 
     auto light = CreateGameObject("DirectionalLight");
     light->SetLightType(LT_DIRECTIONAL);        
@@ -294,12 +299,71 @@ std::shared_ptr<GameObject> SceneManager::GetActiveFog() const {
     return nullptr;
 }
 
+void SceneManager::SetFrustumCullingForActiveCamera(bool enabled) {
+    if (m_ActiveCamera)
+        m_ActiveCamera->SetFrustumCulling(enabled);
+}
+
+void SceneManager::RenderWithCulling(Shader& shader, const Frustum& frustum) {
+    if (!m_Initialized) return;
+    for (const auto& obj : m_Objects) {
+        if (!obj->IsVisible()) continue;
+        // Если объект — камера, всегда рисуем? нет, камера не рендерится
+        if (obj->IsCamera()) continue;
+        if (m_ActiveCamera && m_ActiveCamera->GetFrustumCulling()) {
+            glm::vec3 minBB, maxBB;
+            obj->CalculateAABB(minBB, maxBB);
+            if (!frustum.IsAABBInside(minBB, maxBB))
+                continue;
+        }
+        obj->Draw(shader);
+    }
+}
+
 void SceneManager::ResetPhysics() {
     PhysicsWorld::GetInstance().ResetAllObjects();
 }
 
 void SceneManager::RegisterForPhysicsReset(GameObject* obj) {
     PhysicsWorld::GetInstance().RegisterGameObject(obj);
+}
+
+void SceneManager::RenderLightShafts(const glm::mat4& view, const glm::mat4& projection) {
+    if (!m_Initialized) return;
+    m_ShaftShader.Use();
+    m_ShaftShader.SetMat4("view", glm::value_ptr(view));
+    m_ShaftShader.SetMat4("projection", glm::value_ptr(projection));
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);  // аддитивное смешивание
+    glDepthMask(GL_FALSE);
+    
+    for (const auto& obj : m_Objects) {
+        if (obj->GetLightType() != LT_SPOT) continue;
+        if (!obj->GetShaftEnabled()) continue;
+        if (!obj->GetShaftMesh()) obj->UpdateShaftMesh();
+        auto mesh = obj->GetShaftMesh();
+        if (!mesh) continue;
+        
+        // Матрица модели: источник света (позиция), направление света
+        glm::vec3 pos = obj->GetWorldPosition();
+        glm::vec3 dir = obj->GetLightDirection();
+        glm::vec3 defaultDir(0.0f, 0.0f, -1.0f);
+        glm::quat rot = glm::rotation(defaultDir, glm::normalize(dir));
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
+        model = model * glm::mat4_cast(rot);
+        
+        m_ShaftShader.SetMat4("model", glm::value_ptr(model));
+        m_ShaftShader.SetFloat("intensity", obj->GetShaftIntensity());
+        m_ShaftShader.SetFloat("softness", obj->GetShaftSoftness());
+        m_ShaftShader.SetFloat("density", obj->GetShaftDensity());
+        m_ShaftShader.SetVec3("lightColor", obj->GetLightColor().x, obj->GetLightColor().y, obj->GetLightColor().z);
+        
+        mesh->Draw();
+    }
+    
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
 }
 
 void SceneManager::SaveScene(const std::string& filename) {
