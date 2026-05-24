@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <GL/glew.h>
+#include <glm/glm.hpp>
 
 class Material;
 
@@ -22,12 +23,11 @@ public:
     ~Mesh();
 
     void Draw() const;
-
     void SetMaterial(std::shared_ptr<Material> material) { m_Material = material; }
     std::shared_ptr<Material> GetMaterial() const { return m_Material; }
-
     void SetName(const std::string& name) { m_Name = name; }
     std::string GetName() const { return m_Name; }
+    const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
 
 private:
     GLuint VAO = 0, VBO = 0, EBO = 0;
@@ -36,6 +36,7 @@ private:
     GLuint m_NormalTexture = 0;
     std::shared_ptr<Material> m_Material;
     std::string m_Name;
+    std::vector<Vertex> m_Vertices;
 
     void SetupMesh(const std::vector<Vertex>& vertices,
                    const std::vector<unsigned int>& indices);
