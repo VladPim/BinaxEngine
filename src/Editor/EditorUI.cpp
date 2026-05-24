@@ -130,9 +130,16 @@ void EditorUI::Shutdown() {
 void EditorUI::SetupImGuiStyle() {
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 5.0f;
-    style.FrameRounding = 3.0f;
-    style.GrabRounding = 3.0f;
+    
+    // Обнуляем все скругления
+    style.WindowRounding = 0.0f;
+    style.FrameRounding = 0.0f;
+    style.GrabRounding = 0.0f;
+    style.ChildRounding = 0.0f;      // для дочерних окон
+    style.PopupRounding = 0.0f;      // для всплывающих окон
+    style.ScrollbarRounding = 0.0f;
+    style.TabRounding = 0.0f;        // для вкладок (если используете)
+    
     style.WindowBorderSize = 1.0f;
     style.FrameBorderSize = 1.0f;
 
@@ -187,7 +194,7 @@ void EditorUI::Render() {
     DrawContentBrowser();
     DrawThemeEditor();
     DrawSkyboxSettings();
-    DrawShadowsSettings();  // <-- новое окно
+    DrawShadowsSettings();
 
     if (m_ShowAboutPopup) {
         ImGui::OpenPopup("About");
@@ -477,12 +484,12 @@ if (ImGui::MenuItem("Camera")) {
     ImGui::Separator();
 if (ImGui::MenuItem("Cube")) {
     auto cube = m_SceneManager->CreateGameObject("Cube");
-    cube->SetMesh(Primitives::CreateCube());
+    cube->SetMesh(Primitives::CreateCube());  
     cube->SetColor(glm::vec3(0.8f, 0.3f, 0.2f));
 }
 if (ImGui::MenuItem("Sphere")) {
     auto sphere = m_SceneManager->CreateGameObject("Sphere");
-    sphere->SetMesh(Primitives::CreateSphere());
+    sphere->SetMesh(Primitives::CreateSphere()); 
     sphere->SetColor(glm::vec3(0.3f, 0.8f, 0.2f));
 }
     ImGui::EndPopup();
@@ -586,6 +593,7 @@ if (obj->GetChildren().empty()) {
     ImGui::PopID();
 }
 
+
 void EditorUI::DrawInspector() {
     if (ImGui::Begin("Inspector")) {
         auto selected = m_SceneManager ? m_SceneManager->GetSelectedObject() : nullptr;
@@ -610,10 +618,16 @@ void EditorUI::DrawInspector() {
                     float farPlane = selected->GetCameraFar();
                     if (ImGui::DragFloat("Far Plane", &farPlane, 0.1f, 10.0f, 1000.0f))
                         selected->SetCameraFar(farPlane);
+
+                    bool culling = selected->GetFrustumCulling();
+                    if (ImGui::Checkbox("Frustum Culling", &culling)) {
+                        selected->SetFrustumCulling(culling);
+                    }
+
                     if (ImGui::Button("Switch to this camera"))
                         m_SceneManager->SetActiveCamera(selected);
                 }
-            } else {
+            } else {   // <-- теперь else правильно привязан к if (selected->IsCamera())
                 // Для не-камер – все остальные секции
                 if (ImGui::CollapsingHeader("Appearance", ImGuiTreeNodeFlags_DefaultOpen)) {
                     glm::vec3 color = selected->GetColor();
@@ -630,7 +644,7 @@ void EditorUI::DrawInspector() {
                     }
                 }
 
-                // Секция Light
+                // Light section
                 if (selected->GetLightType() != LT_NONE) {
                     if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
                         glm::vec3 col = selected->GetLightColor();
@@ -654,9 +668,29 @@ void EditorUI::DrawInspector() {
                                 selected->SetLightAngle(angle);
                             }
                             glm::vec3 dir = selected->GetLightDirection();
+                            
                             if (ImGui::DragFloat3("Direction", glm::value_ptr(dir), 0.05f, -1.0f, 1.0f)) {
                                 selected->SetLightDirection(glm::normalize(dir));
                             }
+                            // после настройки угла и направления
+ImGui::Separator();
+ImGui::Text("Fake Volumetric Cone");
+bool shaft = selected->GetShaftEnabled();
+if (ImGui::Checkbox("Enable Shaft", &shaft)) {
+    selected->SetShaftEnabled(shaft);
+}
+if (shaft) {
+    float intensity = selected->GetShaftIntensity();
+    if (ImGui::SliderFloat("Intensity", &intensity, 0.0f, 1.5f))
+        selected->SetShaftIntensity(intensity);
+    float softness = selected->GetShaftSoftness();
+    if (ImGui::SliderFloat("Softness", &softness, 0.2f, 2.0f))
+        selected->SetShaftSoftness(softness);
+    float density = selected->GetShaftDensity();
+if (ImGui::SliderFloat("Density", &density, 0.0f, 1.0f))
+    selected->SetShaftDensity(density);
+}
+
                         }
                         if (lightType == LT_DIRECTIONAL) {
                             glm::vec3 dir = selected->GetLightDirection();
@@ -668,35 +702,38 @@ void EditorUI::DrawInspector() {
                 }
 
                 if (selected->IsFog()) {
-    if (ImGui::CollapsingHeader("Fog Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
-        bool enabled = selected->GetFogEnabled();
-if (ImGui::Checkbox("Enable Fog", &enabled)) {
-    selected->SetFogEnabled(enabled);
-}
-        if (enabled) {
-            const char* fogTypes[] = { "Linear", "Exponential", "Exponential Squared" };
-            int currentType = selected->GetFogType() - 1;
-            if (ImGui::Combo("Type", &currentType, fogTypes, 3)) {
-                selected->SetFogType(currentType + 1);
-            }
-            glm::vec3 color = selected->GetFogColor();
-            if (ImGui::ColorEdit3("Color", glm::value_ptr(color))) {
-                selected->SetFogColor(color);
-            }
-            if (selected->GetFogType() == 1) { // Linear
-                float start = selected->GetFogLinearStart();
-                float end = selected->GetFogLinearEnd();
-                if (ImGui::DragFloat("Start", &start, 0.5f, 0.0f, 200.0f)) selected->SetFogLinearStart(start);
-                if (ImGui::DragFloat("End", &end, 0.5f, 0.0f, 500.0f)) selected->SetFogLinearEnd(end);
-            } else { // Exponential or Exponential Squared
-                float density = selected->GetFogDensity();
-                if (ImGui::DragFloat("Density", &density, 0.002f, 0.0f, 0.5f)) selected->SetFogDensity(density);
-            }
-        }
-    }
-}
+                    if (ImGui::CollapsingHeader("Fog Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+                        bool enabled = selected->GetFogEnabled();
+                        if (ImGui::Checkbox("Enable Fog", &enabled)) {
+                            selected->SetFogEnabled(enabled);
+                        }
+                        if (enabled) {
+                            const char* fogTypes[] = { "Linear", "Exponential", "Exponential Squared" };
+                            int currentType = selected->GetFogType() - 1;
+                            if (ImGui::Combo("Type", &currentType, fogTypes, 3)) {
+                                selected->SetFogType(currentType + 1);
+                            }
+                            glm::vec3 color = selected->GetFogColor();
+                            if (ImGui::ColorEdit3("Color", glm::value_ptr(color))) {
+                                selected->SetFogColor(color);
+                            }
+                            if (selected->GetFogType() == 1) {
+                                float start = selected->GetFogLinearStart();
+                                float end = selected->GetFogLinearEnd();
+                                if (ImGui::DragFloat("Start", &start, 0.5f, 0.0f, 200.0f))
+                                    selected->SetFogLinearStart(start);
+                                if (ImGui::DragFloat("End", &end, 0.5f, 0.0f, 500.0f))
+                                    selected->SetFogLinearEnd(end);
+                            } else {
+                                float density = selected->GetFogDensity();
+                                if (ImGui::DragFloat("Density", &density, 0.002f, 0.0f, 0.5f))
+                                    selected->SetFogDensity(density);
+                            }
+                        }
+                    }
+                }
 
-                // Секция материала
+                // Material, Mesh, Rendering, Components sections...
                 if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
                     auto material = selected->GetMaterial();
                     if (!material) {
@@ -714,17 +751,16 @@ if (ImGui::Checkbox("Enable Fog", &enabled)) {
                     }
                 }
 
-                // Mesh
                 if (ImGui::CollapsingHeader("Mesh", ImGuiTreeNodeFlags_DefaultOpen)) {
                     const char* meshNames[] = { "Cube", "Sphere", "Cylinder", "Cone", "Pyramid", "Plane" };
                     static int currentMesh = -1;
                     if (ImGui::Combo("Mesh Type", &currentMesh, meshNames, IM_ARRAYSIZE(meshNames))) {
                         std::shared_ptr<Mesh> newMesh;
                         switch (currentMesh) {
-                            case 0: newMesh = Primitives::CreateCube(); break;
-                            case 1: newMesh = Primitives::CreateSphere(); break;
-                            case 2: newMesh = Primitives::CreateCylinder(); break;
-                            case 3: newMesh = Primitives::CreateCone(); break;
+    case 0: newMesh = Primitives::CreateCube(); break;
+    case 1: newMesh = Primitives::CreateSphere(); break;
+    case 2: newMesh = Primitives::CreateCylinder(); break;
+    case 3: newMesh = Primitives::CreateCone(); break;
                             case 4: newMesh = Primitives::CreatePyramid(); break;
                             case 5: newMesh = Primitives::CreatePlane(); break;
                         }
@@ -732,57 +768,55 @@ if (ImGui::Checkbox("Enable Fog", &enabled)) {
                     }
                 }
 
-                // Rendering (тени)
                 if (ImGui::CollapsingHeader("Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
                     bool cast = selected->CastShadows();
                     bool receive = selected->ReceiveShadows();
                     if (ImGui::Checkbox("Cast Shadows", &cast)) selected->SetCastShadows(cast);
                     if (ImGui::Checkbox("Receive Shadows", &receive)) selected->SetReceiveShadows(receive);
-
-                    // ===== Components =====
-if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
-    bool canAddComponents = !selected->IsCamera() && selected->GetLightType() == LT_NONE;
-    if (!canAddComponents) {
-        ImGui::TextDisabled("Components not available for lights or cameras");
-    } else {
-        bool hasPhysics = selected->HasRigidBody() || selected->GetColliderType() != COLLIDER_NONE;
-        if (hasPhysics) {
-            DrawPhysicsComponents(selected);
-            if (ImGui::Button("Remove Physics")) {
-                selected->RemoveRigidBody();
-                selected->SetColliderType(COLLIDER_NONE);
-            }
-        } else {
-            if (ImGui::Button("Add Component")) {
-                ImGui::OpenPopup("add_component_popup");
-            }
-            if (ImGui::BeginPopup("add_component_popup")) {
-                if (ImGui::MenuItem("Physics")) {
-                    if (selected->CanHavePhysics()) {
-                        selected->SetColliderType(COLLIDER_BOX);
-                        selected->AddRigidBody(1.0f);
-                        selected->SaveInitialTransform();
-                        PhysicsWorld::GetInstance().RegisterGameObject(selected.get());
-                    } else {
-                        ImGui::OpenPopup("physics_error");
-                    }
                 }
-                ImGui::EndPopup();
-            }
-            if (ImGui::BeginPopupModal("physics_error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-                ImGui::Text("Cannot add physics to object with parent or children!");
-                if (ImGui::Button("OK")) ImGui::CloseCurrentPopup();
-                ImGui::EndPopup();
-            }
-        }
-    }
-}
+
+                if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    bool canAddComponents = !selected->IsCamera() && selected->GetLightType() == LT_NONE;
+                    if (!canAddComponents) {
+                        ImGui::TextDisabled("Components not available for lights or cameras");
+                    } else {
+                        bool hasPhysics = selected->HasRigidBody() || selected->GetColliderType() != COLLIDER_NONE;
+                        if (hasPhysics) {
+                            DrawPhysicsComponents(selected);
+                            if (ImGui::Button("Remove Physics")) {
+                                selected->RemoveRigidBody();
+                                selected->SetColliderType(COLLIDER_NONE);
+                            }
+                        } else {
+                            if (ImGui::Button("Add Component")) {
+                                ImGui::OpenPopup("add_component_popup");
+                            }
+                            if (ImGui::BeginPopup("add_component_popup")) {
+                                if (ImGui::MenuItem("Physics")) {
+                                    if (selected->CanHavePhysics()) {
+                                        selected->SetColliderType(COLLIDER_BOX);
+                                        selected->AddRigidBody(1.0f);
+                                        selected->SaveInitialTransform();
+                                        PhysicsWorld::GetInstance().RegisterGameObject(selected.get());
+                                    } else {
+                                        ImGui::OpenPopup("physics_error");
+                                    }
+                                }
+                                ImGui::EndPopup();
+                            }
+                            if (ImGui::BeginPopupModal("physics_error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+                                ImGui::Text("Cannot add physics to object with parent or children!");
+                                if (ImGui::Button("OK")) ImGui::CloseCurrentPopup();
+                                ImGui::EndPopup();
+                            }
+                        }
+                    }
                 }
             } // конец else (не-камера)
         } // конец if (selected)
+        ImGui::End(); // перемещено внутрь блока Begin
     } // конец if (ImGui::Begin)
-    ImGui::End();
-} // конец DrawInspector
+}
 
 void EditorUI::DrawMaterialControls(std::shared_ptr<GameObject> obj) {
     auto material = obj->GetMaterial();
@@ -1313,9 +1347,7 @@ void EditorUI::LoadEditorSettings() {
         if (data.count("snapTranslation")) m_Settings.snapTranslation = std::stof(data["snapTranslation"]);
         if (data.count("snapRotation")) m_Settings.snapRotation = std::stof(data["snapRotation"]);
         if (data.count("snapScale")) m_Settings.snapScale = std::stof(data["snapScale"]);
-        // VSync
         if (data.count("vsync")) m_Settings.vsync = (std::stoi(data["vsync"]) != 0);
-        // Skybox seamless
         if (data.count("skyboxSeamless")) m_Settings.skyboxSeamless = (std::stoi(data["skyboxSeamless"]) != 0);
     } catch (...) {
         std::cerr << "Failed to parse editorscene.settingscfg" << std::endl;
@@ -1331,17 +1363,11 @@ void EditorUI::LoadEditorSettings() {
 
 void EditorUI::SaveEditorSettings() {
     std::unordered_map<std::string, std::string> data;
-    // Snap
     data["useSnap"] = std::to_string(m_Settings.useSnap ? 1 : 0);
     data["snapTranslation"] = std::to_string(m_Settings.snapTranslation);
     data["snapRotation"] = std::to_string(m_Settings.snapRotation);
     data["snapScale"] = std::to_string(m_Settings.snapScale);
-    // VSync
     data["vsync"] = std::to_string(m_Settings.vsync ? 1 : 0);
-    // Skybox seamless
     data["skyboxSeamless"] = std::to_string(m_Settings.skyboxSeamless ? 1 : 0);
-    // (при необходимости добавьте другие параметры)
-
     SaveKeyValueFile("saves/editorscene.settingscfg", data);
-}
-
+} 
