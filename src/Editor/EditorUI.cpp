@@ -26,6 +26,7 @@
 #include <GLFW/glfw3native.h>
 #include <filesystem>
 #include "Physics/PhysicsWorld.h"
+#include <nlohmann/json.hpp>
 
 static std::string GetFileNameWithoutExt(const std::string& path) {
     std::filesystem::path p(path);
@@ -214,8 +215,6 @@ void EditorUI::Render() {
 }
 
 void EditorUI::DrawMainMenuBar() {
-
-    ImGui::MenuItem("Enable Outline", "", &m_Settings.enable_outline);
 
     if (ImGui::MenuItem("Import Model...")) {
     std::string path = OpenFileDialog("*.obj;*.fbx;*.dae;*.blend;*.3ds;*.stl");
@@ -500,10 +499,6 @@ if (ImGui::MenuItem("Sphere")) {
 }
 
 void EditorUI::DrawObjectTreeNode(std::shared_ptr<GameObject> obj, int& id) {
-    if (!obj->GetChildren().empty()) {
-    std::cout << "DEBUG: Отрисовка " << obj->GetName() 
-              << " с детьми: " << obj->GetChildren().size() << std::endl;
-}
     ImGui::PushID(id++);
     bool isSelected = (obj == m_SceneManager->GetSelectedObject());
 
@@ -512,20 +507,17 @@ void EditorUI::DrawObjectTreeNode(std::shared_ptr<GameObject> obj, int& id) {
     else if (obj->GetName().find("Camera") != std::string::npos) icon = "[C]";
     else if (obj->IsFog()) icon = "[F]";
 
-    // Убираем все флаги, кроме базовых. Стрелка будет у всех, но это не страшно.
-ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-if (isSelected) nodeFlags |= ImGuiTreeNodeFlags_Selected;
-if (obj->GetChildren().empty()) {
-    nodeFlags |= ImGuiTreeNodeFlags_Leaf;   // нет детей → нет стрелки
-}
+    ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+    if (isSelected) nodeFlags |= ImGuiTreeNodeFlags_Selected;
+    if (obj->GetChildren().empty()) {
+        nodeFlags |= ImGuiTreeNodeFlags_Leaf;
+    }
 
     bool nodeOpen = ImGui::TreeNodeEx((std::string(icon) + " " + obj->GetName()).c_str(), nodeFlags);
 
     if (ImGui::IsItemClicked()) {
         m_SceneManager->SetSelectedObject(obj);
     }
-
-    else if (obj->IsFog()) icon = "[F]";
 
     // Drag & Drop — перетаскивание объекта
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoDisableHover)) {
@@ -537,22 +529,18 @@ if (obj->GetChildren().empty()) {
     // Drag & Drop — принятие объекта (сделать ребёнком)
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("GAME_OBJECT")) {
-            GameObject* droppedObj = *(GameObject**)payload->Data;
-            if (droppedObj && droppedObj != obj.get()) {
+            GameObject* droppedObjRaw = *(GameObject**)payload->Data;
+            auto droppedObj = m_SceneManager->FindGameObjectByPtr(droppedObjRaw);
+            if (droppedObj && droppedObj != obj) {
                 // Защита от циклов
                 bool isDescendant = false;
-                GameObject* parent = obj->GetParent();
+                auto parent = obj->GetParent();
                 while (parent) {
                     if (parent == droppedObj) { isDescendant = true; break; }
                     parent = parent->GetParent();
                 }
                 if (!isDescendant) {
-                    for (auto& candidate : m_SceneManager->GetObjects()) {
-                        if (candidate.get() == droppedObj) {
-                            candidate->SetParent(obj, true);
-                            break;
-                        }
-                    }
+                    droppedObj->SetParent(obj, true);
                 }
             }
         }
@@ -582,7 +570,6 @@ if (obj->GetChildren().empty()) {
         ImGui::EndPopup();
     }
 
-    // Рисуем детей, если узел открыт
     if (nodeOpen) {
         for (const auto& child : obj->GetChildren()) {
             DrawObjectTreeNode(child, id);
@@ -820,7 +807,7 @@ if (ImGui::SliderFloat("Density", &density, 0.0f, 1.0f))
 
 void EditorUI::DrawMaterialControls(std::shared_ptr<GameObject> obj) {
     auto material = obj->GetMaterial();
-    if (!material) return; // защита
+    if (!material) return;
 
     ImGui::Text("Material: %s", obj->GetName().c_str());
     ImGui::Separator();
@@ -829,102 +816,97 @@ void EditorUI::DrawMaterialControls(std::shared_ptr<GameObject> obj) {
     ImGui::Text("Textures");
     
     // Diffuse
-ImGui::Text("Diffuse: %s", material->HasDiffuse() ? "Loaded" : "None");
-ImGui::SameLine();
-if (ImGui::Button("Load##Diffuse")) {
-    std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
-    if (!path.empty()) material->LoadDiffuseTexture(path);
-}
-ImGui::SameLine();
-if (ImGui::Button("Clear##Diffuse") && material->HasDiffuse()) {
-    material->ClearDiffuse();
-}
+    ImGui::Text("Diffuse: %s", material->HasDiffuse() ? "Loaded" : "None");
+    ImGui::SameLine();
+    if (ImGui::Button("Load##Diffuse")) {
+        std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
+        if (!path.empty()) material->LoadDiffuseTexture(path);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear##Diffuse") && material->HasDiffuse()) {
+        material->ClearDiffuse();
+    }
 
-// Normal
-ImGui::Text("Normal: %s", material->HasNormal() ? "Loaded" : "None");
-ImGui::SameLine();
-if (ImGui::Button("Load##Normal")) {
-    std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
-    if (!path.empty()) material->LoadNormalTexture(path);
-}
-ImGui::SameLine();
-if (ImGui::Button("Clear##Normal") && material->HasNormal()) {
-    material->ClearNormal();
-}
+    // Normal
+    ImGui::Text("Normal: %s", material->HasNormal() ? "Loaded" : "None");
+    ImGui::SameLine();
+    if (ImGui::Button("Load##Normal")) {
+        std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
+        if (!path.empty()) material->LoadNormalTexture(path);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear##Normal") && material->HasNormal()) {
+        material->ClearNormal();
+    }
 
-// Roughness
-ImGui::Text("Roughness: %s", material->HasRoughness() ? "Loaded" : "None");
-ImGui::SameLine();
-if (ImGui::Button("Load##Roughness")) {
-    std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
-    if (!path.empty()) material->LoadRoughnessTexture(path);
-}
-ImGui::SameLine();
-if (ImGui::Button("Clear##Roughness") && material->HasRoughness()) {
-    material->ClearRoughness();
-}
+    // Roughness
+    ImGui::Text("Roughness: %s", material->HasRoughness() ? "Loaded" : "None");
+    ImGui::SameLine();
+    if (ImGui::Button("Load##Roughness")) {
+        std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
+        if (!path.empty()) material->LoadRoughnessTexture(path);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear##Roughness") && material->HasRoughness()) {
+        material->ClearRoughness();
+    }
 
-// Metallic
-ImGui::Text("Metallic: %s", material->HasMetallic() ? "Loaded" : "None");
-ImGui::SameLine();
-if (ImGui::Button("Load##Metallic")) {
-    std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
-    if (!path.empty()) material->LoadMetallicTexture(path);
-}
-ImGui::SameLine();
-if (ImGui::Button("Clear##Metallic") && material->HasMetallic()) {
-    material->ClearMetallic();
-}
+    // Metallic
+    ImGui::Text("Metallic: %s", material->HasMetallic() ? "Loaded" : "None");
+    ImGui::SameLine();
+    if (ImGui::Button("Load##Metallic")) {
+        std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
+        if (!path.empty()) material->LoadMetallicTexture(path);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear##Metallic") && material->HasMetallic()) {
+        material->ClearMetallic();
+    }
 
-// AO
-ImGui::Text("AO: %s", material->HasAO() ? "Loaded" : "None");
-ImGui::SameLine();
-if (ImGui::Button("Load##AO")) {
-    std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
-    if (!path.empty()) material->LoadAOTexture(path);
-}
-ImGui::SameLine();
-if (ImGui::Button("Clear##AO") && material->HasAO()) {
-    material->ClearAO();
-}
+    // AO
+    ImGui::Text("AO: %s", material->HasAO() ? "Loaded" : "None");
+    ImGui::SameLine();
+    if (ImGui::Button("Load##AO")) {
+        std::string path = OpenFileDialog("*.jpg;*.png;*.bmp");
+        if (!path.empty()) material->LoadAOTexture(path);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear##AO") && material->HasAO()) {
+        material->ClearAO();
+    }
 
     ImGui::Separator();
 
     // ---- Параметры ----
     ImGui::Text("Material Parameters");
     
-    // Normal strength (активно только если есть normal map)
     if (material->HasNormal()) {
         float strength = material->normalStrength;
         if (ImGui::SliderFloat("Normal Strength", &strength, 0.0f, 2.0f))
             material->normalStrength = strength;
     }
 
-    // UV Scale
     float uvScale[2] = { material->uvScale.x, material->uvScale.y };
     if (ImGui::DragFloat2("UV Scale", uvScale, 0.1f, 0.1f, 10.0f))
         material->uvScale = glm::vec2(uvScale[0], uvScale[1]);
 
-    // World UV
     bool worldUV = material->useWorldUV;
     if (ImGui::Checkbox("Use World UV", &worldUV))
         material->useWorldUV = worldUV;
 
-    // Metallic (если нет текстуры)
     if (!material->HasMetallic()) {
         float metal = material->metallic;
         if (ImGui::SliderFloat("Metallic", &metal, 0.0f, 1.0f))
             material->metallic = metal;
     }
 
-    // Roughness (если нет текстуры)
     if (!material->HasRoughness()) {
         float rough = material->roughness;
         if (ImGui::SliderFloat("Roughness", &rough, 0.0f, 1.0f))
             material->roughness = rough;
     }
 
-    // Emission
+    // ---- Emission ----
     ImGui::Separator();
     ImGui::Text("Emission");
     float emissionCol[3] = { material->emissionColor.x, material->emissionColor.y, material->emissionColor.z };
@@ -933,6 +915,40 @@ if (ImGui::Button("Clear##AO") && material->HasAO()) {
         material->emissionColor = glm::vec3(emissionCol[0], emissionCol[1], emissionCol[2]);
     if (ImGui::SliderFloat("Intensity", &emissionInt, 0.0f, 5.0f))
         material->emissionIntensity = emissionInt;
+
+    // ---- Reflections checkbox (без сворачиваемого заголовка) ----
+    ImGui::Separator();
+    bool reflectionsEnabled = material->enableReflections;
+    if (ImGui::Checkbox("Enable Environment Reflections", &reflectionsEnabled)) {
+        material->enableReflections = reflectionsEnabled;
+    }
+
+    // ---- Material File Operations ----
+    ImGui::Separator();
+    ImGui::Text("Material File Operations");
+
+    if (ImGui::Button("Save Material As...")) {
+        std::string path = SaveFileDialog("Material Files\0*.binaxmat\0", "binaxmat");
+        if (!path.empty()) {
+            if (material->SaveToFile(path))
+                std::cout << "Material saved to " << path << std::endl;
+            else
+                std::cerr << "Failed to save material" << std::endl;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load Material")) {
+        std::string path = OpenFileDialog("Material Files\0*.binaxmat\0");
+        if (!path.empty()) {
+            auto newMaterial = std::make_shared<Material>();
+            if (newMaterial->LoadFromFile(path)) {
+                obj->SetMaterial(newMaterial);
+                std::cout << "Material loaded from " << path << std::endl;
+            } else {
+                std::cerr << "Failed to load material" << std::endl;
+            }
+        }
+    }
 }
 
 void EditorUI::DrawTransformControls(std::shared_ptr<GameObject> obj) {
@@ -1264,6 +1280,24 @@ std::string EditorUI::OpenFileDialog(const char* filter) {
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
 
     if (GetOpenFileNameA(&ofn)) {
+        return std::string(filename);
+    }
+    return "";
+}
+
+std::string EditorUI::SaveFileDialog(const char* filter, const char* defaultExt) {
+    char filename[MAX_PATH] = {};
+    OPENFILENAMEA ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = glfwGetWin32Window(m_Window);
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrDefExt = defaultExt;
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY;
+    
+    if (GetSaveFileNameA(&ofn)) {
         return std::string(filename);
     }
     return "";
