@@ -10,7 +10,6 @@ set(SHADERS_DIR "${ASSETS_DIR}/shaders")
 # ========== BULLET ==========
 set(BULLET_DIR "${LIBS_DIR}/bullet")
 set(BULLET_INCLUDE "${BULLET_DIR}/src")
-# Путь к скомпилированным библиотекам Bullet (Release)
 set(BULLET_LIB_DIR "${BULLET_DIR}/build/lib/Release")
 
 set(BULLET_LIBS
@@ -53,6 +52,9 @@ find_library(ASSIMP_LIBRARY
     NO_DEFAULT_PATH
 )
 
+# JSON (nlohmann)
+set(JSON_INCLUDE "${LIBS_DIR}/json")
+
 # ========== ПРОВЕРКИ ==========
 if(NOT EXISTS "${GLFW_INCLUDE}/GLFW/glfw3.h")
     message(FATAL_ERROR "GLFW header not found at: ${GLFW_INCLUDE}")
@@ -79,6 +81,9 @@ endif()
 if(NOT ASSIMP_LIBRARY)
     message(WARNING "Assimp library not found. Model loading disabled.")
 endif()
+if(NOT EXISTS "${JSON_INCLUDE}/nlohmann/json.hpp")
+    message(FATAL_ERROR "JSON library not found at: ${JSON_INCLUDE}")
+endif()
 
 message(STATUS "=== Libraries found ===")
 message(STATUS "GLFW: ${GLFW_INCLUDE}")
@@ -90,6 +95,7 @@ message(STATUS "Shaders: ${SHADERS_DIR}")
 if(ASSIMP_LIBRARY)
     message(STATUS "Assimp: ${ASSIMP_LIBRARY}")
 endif()
+message(STATUS "JSON: ${JSON_INCLUDE}")
 
 # ========== ИСХОДНЫЕ ФАЙЛЫ ==========
 set(SOURCES
@@ -136,6 +142,7 @@ target_include_directories(BinaxEngine PRIVATE
     ${STB_DIR}
     ${ASSETS_DIR}
     ${BULLET_INCLUDE}
+    ${JSON_INCLUDE}
 )
 
 if(EXISTS "${ASSIMP_INCLUDE}")
