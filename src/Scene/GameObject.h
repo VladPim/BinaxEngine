@@ -35,7 +35,7 @@ public:
     std::shared_ptr<GameObject> GetParent() const { return m_Parent.lock(); }
     const std::vector<std::shared_ptr<GameObject>>& GetChildren() const { return m_Children; }
     bool CanHavePhysics() const;
-    void Unparent();  // открепить от родителя, сохранив мировую трансформацию
+    void Unparent();
     void SetParent(std::shared_ptr<GameObject> newParent, bool keepWorldPosition = true);
     void SetPosition(const glm::vec3& position);
     void SetRotation(const glm::vec3& rotation);
@@ -132,8 +132,11 @@ public:
     std::shared_ptr<Mesh> GetShaftMesh() const { return m_ShaftMesh; }
     void SetShaftDensity(float density);
     float GetShaftDensity() const;
+    void SetShowFrustumGizmo(bool show) { m_ShowFrustumGizmo = show; }
+    bool GetShowFrustumGizmo() const { return m_ShowFrustumGizmo; }
+    void SetShowLightGizmo(bool show) { m_ShowLightGizmo = show; }
+    bool GetShowLightGizmo() const { return m_ShowLightGizmo; }
 
-    
 
 private:
     std::string m_Name;
@@ -147,6 +150,8 @@ private:
     bool m_Visible = true;
     bool m_CastShadows = true;
     bool m_ReceiveShadows = true;
+    bool m_ShowFrustumGizmo = true;
+    bool m_ShowLightGizmo = true;
     std::shared_ptr<Material> m_Material;
     glm::vec3 m_PreviousRotation = glm::vec3(0.0f);
     int m_LightType = LT_NONE;
