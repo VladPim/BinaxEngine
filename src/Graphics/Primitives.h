@@ -12,4 +12,5 @@ public:
     static std::shared_ptr<Mesh> CreatePyramid();
     static std::shared_ptr<Mesh> CreatePlane();
     static std::shared_ptr<Mesh> CreateSkyboxSphere(int segments = 64);
+    static std::shared_ptr<Mesh> CreateGridLines(int size, float step = 1.0f);
 };
