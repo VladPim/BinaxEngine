@@ -8,9 +8,6 @@
 [![Windows](https://img.shields.io/badge/Platform-Windows-blue?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
 [![Status](https://img.shields.io/badge/status-beta-yellow?style=flat-square)]()
 
-**⚠️ BETA RELEASE – WORK IN PROGRESS ⚠️**  
-This release introduces full audio system, real‑time 3D sound, editor components, and significant performance improvements. Expect ongoing refinements.
-
 **BinaxEngine** is a lightweight game engine built with C++ and OpenGL, featuring an integrated editor for scene management, physics simulation, audio, and real‑time rendering.
 
 ![BinaxEngine Editor](resources/screenshots/binaxscreenshot.png)
