@@ -8,25 +8,6 @@
 [![Windows](https://img.shields.io/badge/Platform-Windows-blue?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
 [![Status](https://img.shields.io/badge/status-beta-yellow?style=flat-square)]()
 
-**BinaxEngine** is a lightweight game engine built with C++ and OpenGL, featuring an integrated editor for scene management, physics simulation, audio, and real‑time rendering.
-# ⚠️ ВНИМАНИЕ / NOTICE
-
-### 🇷🇺 Важная информация:
-Данный репозиторий является **исключительно демонстрационным портфолио автора**. 
-* Исходный код **BinaxEngine** открыт только для ознакомления и оценки инженерных навыков.
-* **Любое копирование кода, его модификация, распространение или использование в сторонних проектах (как коммерческих, так и некоммерческих) СТРОГО ЗАПРЕЩЕНО.** Все права защищены (**All Rights Reserved**).
-
-Если вы оцениваете данный проект, пожалуйста, оставьте **звёздочку (Star) 🌟**, чтобы зафиксировать ваш визит.
-
----
-
-### 🇺🇸 Important Notice:
-This repository exists solely as a **personal portfolio and technical demonstration**.
-* Public access to the source code is granted for evaluation and viewing purposes only.
-* **Any copying, reproduction, modification, redistribution, or use of this code in any other projects (commercial or non-commercial) is STRICTLY PROHIBITED.** All rights reserved.
-
-If you are reviewing this project, please consider leaving a **Star 🌟** to acknowledge the author's work.
-
 ---
 
 ![BinaxEngine Editor](resources/screenshots/binaxscreenshot.png)
