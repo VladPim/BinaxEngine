@@ -9,7 +9,7 @@ made this project possible.
 ================================================================================
 AUTHOR
 ================================================================================
-- VladPim – engine, editor, and architecture development.
+- Atomizr – engine, editor, and architecture development.
 
 ================================================================================
 THIRD-PARTY LIBRARIES
