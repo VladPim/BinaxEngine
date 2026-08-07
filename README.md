@@ -134,7 +134,7 @@
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/https://github.com/vladpim/BinaxEngine.git
+git clone https://github.com/atomizr/BinaxEngineLegacy.git
 cd BinaxEngine
 ```
 
@@ -235,7 +235,7 @@ BinaxEngine is released under the **MIT License**. See [LICENSE](LICENSE) for de
 
 ## Author
 
-- **VladPim** – Engine & Editor development
+- **Atomizr** – Engine & Editor development
 
 ---
 
